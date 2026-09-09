@@ -123,4 +123,16 @@ public class AuthController {
         UserResponse response = userService.getCurrentUser(username);
         return ResponseEntity.ok(response);
     }
+
+    @PostMapping("/forgot-password")
+    public ResponseEntity<?> forgotPassword(@Valid @RequestBody truyen.cloud.dtos.request.ForgotPasswordRequest request) {
+        userService.sendForgotPasswordOtp(request);
+        return ResponseEntity.ok(Map.of("message", "Mã xác nhận OTP đã được gửi tới email của bạn. Vui lòng kiểm tra hộp thư!"));
+    }
+
+    @PostMapping("/reset-password")
+    public ResponseEntity<?> resetPassword(@Valid @RequestBody truyen.cloud.dtos.request.ResetPasswordRequest request) {
+        userService.resetPassword(request);
+        return ResponseEntity.ok(Map.of("message", "Đặt lại mật khẩu thành công! Bạn có thể đăng nhập bằng mật khẩu mới ngay bây giờ."));
+    }
 }

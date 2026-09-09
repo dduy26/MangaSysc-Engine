@@ -67,6 +67,17 @@ export default function App() {
   const [authPassword, setAuthPassword] = useState('');
   const [authUsername, setAuthUsername] = useState('');
 
+  // Forgot Password Modal State
+  const [showForgotModal, setShowForgotModal] = useState(false);
+  const [forgotStep, setForgotStep] = useState(1); // 1: Enter email, 2: Enter OTP & new password
+  const [forgotEmail, setForgotEmail] = useState('');
+  const [forgotOtp, setForgotOtp] = useState('');
+  const [forgotNewPassword, setForgotNewPassword] = useState('');
+  const [forgotConfirmPassword, setForgotConfirmPassword] = useState('');
+  const [forgotLoading, setForgotLoading] = useState(false);
+  const [forgotError, setForgotError] = useState('');
+  const [forgotCooldown, setForgotCooldown] = useState(0);
+
   // Data & Toast state
   const [stories, setStories] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -537,6 +548,90 @@ export default function App() {
       } finally {
         setAuthLoading(false);
       }
+    }
+  };
+
+  // Forgot Password Cooldown Timer Effect
+  useEffect(() => {
+    let timer = null;
+    if (forgotCooldown > 0) {
+      timer = setInterval(() => {
+        setForgotCooldown((prev) => (prev <= 1 ? 0 : prev - 1));
+      }, 1000);
+    }
+    return () => {
+      if (timer) clearInterval(timer);
+    };
+  }, [forgotCooldown]);
+
+  // Forgot Password Action Handlers
+  const handleSendForgotOtp = async (e) => {
+    if (e) e.preventDefault();
+    if (!forgotEmail || !forgotEmail.trim() || !forgotEmail.includes('@')) {
+      const msg = 'Vui lòng nhập địa chỉ Email hợp lệ!';
+      setForgotError(msg);
+      showToast(msg, 'error');
+      return;
+    }
+    setForgotLoading(true);
+    setForgotError('');
+    try {
+      await api.forgotPassword(forgotEmail.trim());
+      setForgotStep(2);
+      setForgotCooldown(60);
+      showToast('✉️ Mã OTP 6 số đã được gửi tới Gmail của bạn. Vui lòng kiểm tra hộp thư!', 'success');
+    } catch (err) {
+      const msg = err.message || 'Không thể gửi mã OTP. Vui lòng kiểm tra lại email!';
+      setForgotError(msg);
+      showToast(msg, 'error');
+    } finally {
+      setForgotLoading(false);
+    }
+  };
+
+  const handleResetPasswordSubmit = async (e) => {
+    if (e) e.preventDefault();
+    if (!forgotOtp || forgotOtp.trim().length !== 6) {
+      const msg = 'Vui lòng nhập đầy đủ 6 chữ số mã OTP!';
+      setForgotError(msg);
+      showToast(msg, 'error');
+      return;
+    }
+    if (!forgotNewPassword || forgotNewPassword.length < 6) {
+      const msg = 'Mật khẩu mới phải có ít nhất 6 ký tự!';
+      setForgotError(msg);
+      showToast(msg, 'error');
+      return;
+    }
+    if (forgotNewPassword !== forgotConfirmPassword) {
+      const msg = 'Mật khẩu xác nhận không trùng khớp!';
+      setForgotError(msg);
+      showToast(msg, 'error');
+      return;
+    }
+    setForgotLoading(true);
+    setForgotError('');
+    try {
+      await api.resetPassword({
+        email: forgotEmail.trim(),
+        otp: forgotOtp.trim(),
+        newPassword: forgotNewPassword
+      });
+      showToast('🎉 Đặt lại mật khẩu thành công! Hãy đăng nhập bằng mật khẩu mới.', 'success');
+      setShowForgotModal(false);
+      setForgotStep(1);
+      setForgotOtp('');
+      setForgotNewPassword('');
+      setForgotConfirmPassword('');
+      setAuthEmail(forgotEmail.trim());
+      setAuthTab('login');
+      setShowAuthModal(true);
+    } catch (err) {
+      const msg = err.message || 'Đặt lại mật khẩu thất bại. Mã OTP có thể đã hết hạn!';
+      setForgotError(msg);
+      showToast(msg, 'error');
+    } finally {
+      setForgotLoading(false);
     }
   };
 
@@ -1237,7 +1332,17 @@ export default function App() {
               <div className="input-label-row">
                 <label>Mật khẩu</label>
                 {authTab === 'login' && (
-                  <span className="forgot-link" onClick={() => showToast('Vui lòng liên hệ Admin để khôi phục mật khẩu!', 'error')}>
+                  <span
+                    className="forgot-link"
+                    style={{ cursor: 'pointer', color: 'var(--accent-pink)', fontWeight: 600 }}
+                    onClick={() => {
+                      setShowAuthModal(false);
+                      setForgotEmail(authEmail || '');
+                      setForgotError('');
+                      setForgotStep(1);
+                      setShowForgotModal(true);
+                    }}
+                  >
                     Quên mật khẩu?
                   </span>
                 )}
@@ -1270,6 +1375,178 @@ export default function App() {
             <div className="auth-footer-terms">
               By registering, you agree to our Terms and Privacy Policy.
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* FORGOT PASSWORD MODAL (EMAIL OTP VERIFICATION) */}
+      {showForgotModal && (
+        <div className="modal-overlay" onClick={() => setShowForgotModal(false)}>
+          <div
+            className="auth-modal-card"
+            style={{ maxWidth: '440px', width: '100%', position: 'relative' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              className="auth-close-btn"
+              onClick={() => setShowForgotModal(false)}
+              title="Đóng"
+            >
+              ✕
+            </button>
+
+            <div className="auth-modal-header" style={{ marginBottom: '20px' }}>
+              <div style={{ fontSize: '38px', marginBottom: '8px' }}>
+                {forgotStep === 1 ? '🔒' : '✉️'}
+              </div>
+              <h2 className="auth-modal-title" style={{ fontSize: '22px', fontWeight: 800 }}>
+                {forgotStep === 1 ? 'Quên Mật Khẩu' : 'Xác Thực Mã OTP'}
+              </h2>
+              <p className="auth-modal-subtitle" style={{ fontSize: '13px', color: 'var(--text-secondary)', marginTop: '4px' }}>
+                {forgotStep === 1
+                  ? 'Nhập địa chỉ Email đã đăng ký để nhận mã OTP xác thực qua Gmail miễn phí.'
+                  : `Mã xác nhận 6 số đã được gửi tới ${forgotEmail}`}
+              </p>
+            </div>
+
+            {forgotError && (
+              <div className="auth-error-banner" style={{ marginBottom: '16px', padding: '10px 14px', borderRadius: '10px', backgroundColor: '#fee2e2', color: '#dc2626', fontSize: '13px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span>⚠️</span>
+                <span>{forgotError}</span>
+              </div>
+            )}
+
+            {forgotStep === 1 ? (
+              /* STEP 1: ENTER EMAIL */
+              <form onSubmit={handleSendForgotOtp} className="auth-form">
+                <div className="input-label-row">
+                  <label>Địa chỉ Email</label>
+                </div>
+                <div className="input-with-icon-wrapper">
+                  <span className="input-left-icon">✉️</span>
+                  <input
+                    type="email"
+                    className="auth-input"
+                    placeholder="Nhập email của bạn (ví dụ: user@gmail.com)..."
+                    value={forgotEmail}
+                    onChange={(e) => { setForgotEmail(e.target.value); if (forgotError) setForgotError(''); }}
+                    autoFocus
+                    required
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  className="btn-auth-submit"
+                  disabled={forgotLoading}
+                  style={{ marginTop: '16px' }}
+                >
+                  {forgotLoading ? 'Đang gửi mã...' : 'Gửi Mã OTP Qua Gmail 🚀'}
+                </button>
+
+                <div style={{ textAlign: 'center', marginTop: '16px' }}>
+                  <span
+                    style={{ fontSize: '13px', color: 'var(--accent-pink)', cursor: 'pointer', fontWeight: 700 }}
+                    onClick={() => {
+                      setShowForgotModal(false);
+                      setAuthTab('login');
+                      setShowAuthModal(true);
+                    }}
+                  >
+                    ← Quay lại Đăng nhập
+                  </span>
+                </div>
+              </form>
+            ) : (
+              /* STEP 2: ENTER OTP & NEW PASSWORD */
+              <form onSubmit={handleResetPasswordSubmit} className="auth-form">
+                <div className="input-label-row" style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <label>Mã xác thực OTP (6 chữ số)</label>
+                  {forgotCooldown > 0 ? (
+                    <span style={{ fontSize: '12px', color: '#9ca3af' }}>Gửi lại sau ({forgotCooldown}s)</span>
+                  ) : (
+                    <span
+                      style={{ fontSize: '12px', color: 'var(--accent-pink)', cursor: 'pointer', fontWeight: 700 }}
+                      onClick={handleSendForgotOtp}
+                    >
+                      🔄 Gửi lại mã
+                    </span>
+                  )}
+                </div>
+                <div className="input-with-icon-wrapper">
+                  <span className="input-left-icon">🔢</span>
+                  <input
+                    type="text"
+                    maxLength={6}
+                    className="auth-input"
+                    placeholder="Nhập 6 số OTP trong Gmail..."
+                    value={forgotOtp}
+                    onChange={(e) => { setForgotOtp(e.target.value.replace(/\D/g, '')); if (forgotError) setForgotError(''); }}
+                    style={{ letterSpacing: '4px', fontWeight: 800, fontSize: '16px' }}
+                    autoFocus
+                    required
+                  />
+                </div>
+
+                <div className="input-label-row" style={{ marginTop: '14px' }}>
+                  <label>Mật khẩu mới</label>
+                </div>
+                <div className="input-with-icon-wrapper">
+                  <span className="input-left-icon">🔒</span>
+                  <input
+                    type="password"
+                    className="auth-input"
+                    placeholder="Nhập mật khẩu mới (ít nhất 6 ký tự)..."
+                    value={forgotNewPassword}
+                    onChange={(e) => { setForgotNewPassword(e.target.value); if (forgotError) setForgotError(''); }}
+                    required
+                  />
+                </div>
+
+                <div className="input-label-row" style={{ marginTop: '14px' }}>
+                  <label>Xác nhận mật khẩu mới</label>
+                </div>
+                <div className="input-with-icon-wrapper">
+                  <span className="input-left-icon">🔑</span>
+                  <input
+                    type="password"
+                    className="auth-input"
+                    placeholder="Nhập lại mật khẩu mới..."
+                    value={forgotConfirmPassword}
+                    onChange={(e) => { setForgotConfirmPassword(e.target.value); if (forgotError) setForgotError(''); }}
+                    required
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  className="btn-auth-submit"
+                  disabled={forgotLoading}
+                  style={{ marginTop: '20px' }}
+                >
+                  {forgotLoading ? 'Đang đổi mật khẩu...' : 'Đổi Mật Khẩu & Đăng Nhập ✨'}
+                </button>
+
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '16px' }}>
+                  <span
+                    style={{ fontSize: '12.5px', color: 'var(--text-secondary)', cursor: 'pointer' }}
+                    onClick={() => { setForgotStep(1); setForgotError(''); }}
+                  >
+                    ← Đổi Email khác
+                  </span>
+                  <span
+                    style={{ fontSize: '12.5px', color: 'var(--accent-pink)', cursor: 'pointer', fontWeight: 700 }}
+                    onClick={() => {
+                      setShowForgotModal(false);
+                      setAuthTab('login');
+                      setShowAuthModal(true);
+                    }}
+                  >
+                    Đăng nhập ngay ›
+                  </span>
+                </div>
+              </form>
+            )}
           </div>
         </div>
       )}

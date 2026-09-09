@@ -141,6 +141,16 @@ export const api = {
 
   getCurrentUser: () => request('/auth/me'),
 
+  forgotPassword: (email) => request('/auth/forgot-password', {
+    method: 'POST',
+    body: JSON.stringify({ email }),
+  }),
+
+  resetPassword: (data) => request('/auth/reset-password', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  }),
+
   logout: async () => {
     try {
       await request('/auth/logout', { method: 'POST' });
