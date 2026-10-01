@@ -1,4 +1,4 @@
-# 📚 Truyen-Cloud - Comic & Manga Platform
+# 📚 Manga Sync - Comic & Manga Platform
 
 Hệ thống đọc truyện trực tuyến được thiết kế và xây dựng theo mô hình Client - Server với kiến trúc backend phân tầng (Layered Architecture). Dự án tích hợp hệ thống tự động cào và đồng bộ dữ liệu truyện từ các nguồn mở (MangaDex API), quản lý phiên bảo mật bằng JWT/Redis và hỗ trợ Rate Limiting chống tấn công DDoS/Spam.
 
